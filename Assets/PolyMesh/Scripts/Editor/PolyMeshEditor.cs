@@ -50,13 +50,13 @@ public class PolyMeshEditor : Editor
 		//Toggle editing mode
 		if (editing)
 		{
-			if (GUILayout.Button("Stop Editing"))
+			if (IndentedButton("Stop Editing"))
 			{
 				editing = false;
 				HideWireframe(false);
 			}
 		}
-		else if (GUILayout.Button("Edit PolyMesh"))
+		else if (IndentedButton("Edit PolyMesh"))
 		{
 			editing = true;
 			HideWireframe(hideWireframe);
@@ -65,6 +65,8 @@ public class PolyMeshEditor : Editor
 		//UV settings
 		if (uvSettings = EditorGUILayout.Foldout(uvSettings, "UVs"))
 		{
+			EditorGUI.indentLevel += 1;
+			
 			var uvPosition = EditorGUILayout.Vector2Field("Position", polyMesh.uvPosition);
 			var uvScale = EditorGUILayout.FloatField("Scale", polyMesh.uvScale);
 			var uvRotation = EditorGUILayout.Slider("Rotation", polyMesh.uvRotation, -180, 180) % 360;
@@ -77,17 +79,21 @@ public class PolyMeshEditor : Editor
 				polyMesh.uvScale = uvScale;
 				polyMesh.uvRotation = uvRotation;
 			}
-			if (GUILayout.Button("Reset UVs"))
+			if (IndentedButton("Reset UVs"))
 			{
 				polyMesh.uvPosition = Vector3.zero;
 				polyMesh.uvScale = 1;
 				polyMesh.uvRotation = 0;
 			}
+			
+			EditorGUI.indentLevel -= 1;
 		}
 
 		//Mesh settings
 		if (meshSettings = EditorGUILayout.Foldout(meshSettings, "Mesh"))
 		{
+			EditorGUI.indentLevel += 1;
+			
 			var curveDetail = EditorGUILayout.Slider("Curve Detail", polyMesh.curveDetail, 0.01f, 1f);
 			curveDetail = Mathf.Clamp(curveDetail, 0.01f, 1f);
 			if (GUI.changed)
@@ -98,7 +104,7 @@ public class PolyMeshEditor : Editor
 
 			//Buttons
 			EditorGUILayout.BeginHorizontal();
-			if (GUILayout.Button("Build Mesh"))
+			if (IndentedButton("Build Mesh"))
 				polyMesh.BuildMesh();
 			if (GUILayout.Button("Make Mesh Unique"))
 			{
@@ -107,41 +113,58 @@ public class PolyMeshEditor : Editor
 				polyMesh.BuildMesh();
 			}
 			EditorGUILayout.EndHorizontal();
+			
+			EditorGUI.indentLevel -= 1;
 		}
 
 		//Create collider
 		if (colliderSettings = EditorGUILayout.Foldout(colliderSettings, "Collider"))
 		{
+			EditorGUI.indentLevel += 1;
+			
 			//Collider depth
-			var colliderDepth = EditorGUILayout.FloatField("Depth", polyMesh.colliderDepth);
-			colliderDepth = Mathf.Max(colliderDepth, 0.01f);
-			var buildColliderEdges = EditorGUILayout.Toggle("Build Edges", polyMesh.buildColliderEdges);
-			var buildColliderFront = EditorGUILayout.Toggle("Build Font", polyMesh.buildColliderFront);
-			if (GUI.changed)
-			{
+			var colliderIs2D = EditorGUILayout.Toggle("2D", polyMesh.colliderIs2D);
+			if (!polyMesh.colliderIs2D){
+				var colliderDepth = Mathf.Max(EditorGUILayout.FloatField("Depth", polyMesh.colliderDepth), 0.01f);
+				var buildColliderEdges = EditorGUILayout.Toggle("Build Edges", polyMesh.buildColliderEdges);
+				var buildColliderFront = EditorGUILayout.Toggle("Build Front", polyMesh.buildColliderFront);
+				if (GUI.changed){
+					RecordUndo();
+					polyMesh.colliderDepth = colliderDepth;
+					polyMesh.buildColliderEdges = buildColliderEdges;
+					polyMesh.buildColliderFront = buildColliderFront;
+				}
+			}
+			if (GUI.changed){
 				RecordUndo();
-				polyMesh.colliderDepth = colliderDepth;
-				polyMesh.buildColliderEdges = buildColliderEdges;
-				polyMesh.buildColliderFront = buildColliderFront;
+				polyMesh.colliderIs2D = colliderIs2D;
 			}
 
 			//Destroy collider
-			if (polyMesh.meshCollider == null)
-			{
-				if (GUILayout.Button("Create Collider"))
+			if (polyMesh.meshCollider == null && polyMesh.polygonCollider == null){
+				if (IndentedButton("Create Collider"))
 				{
 					RecordDeepUndo();
-					var obj = new GameObject("Collider", typeof(MeshCollider));
-					polyMesh.meshCollider = obj.GetComponent<MeshCollider>();
+					var obj = new GameObject("Collider");
+					if (!polyMesh.colliderIs2D)	polyMesh.meshCollider = obj.AddComponent<MeshCollider>();
+					else polyMesh.polygonCollider = obj.AddComponent<PolygonCollider2D>();
 					obj.transform.parent = polyMesh.transform;
 					obj.transform.localPosition = Vector3.zero;
 				}
 			}
-			else if (GUILayout.Button("Destroy Collider"))
+			else if (IndentedButton("Destroy Collider"))
 			{
-				RecordDeepUndo();
-				DestroyImmediate(polyMesh.meshCollider.gameObject);
+				if (polyMesh.meshCollider != null){
+					RecordDeepUndo();
+					DestroyImmediate(polyMesh.meshCollider.gameObject);
+				}
+				if (polyMesh.polygonCollider != null){
+					RecordDeepUndo();
+					DestroyImmediate(polyMesh.polygonCollider.gameObject);
+				}
 			}
+			
+			EditorGUI.indentLevel -= 1;
 		}
 
 		//Update mesh
@@ -151,6 +174,8 @@ public class PolyMeshEditor : Editor
 		//Editor settings
 		if (editorSettings = EditorGUILayout.Foldout(editorSettings, "Editor"))
 		{
+			EditorGUI.indentLevel += 1;
+			
 			gridSnap = EditorGUILayout.FloatField("Grid Snap", gridSnap);
 			autoSnap = EditorGUILayout.Toggle("Auto Snap", autoSnap);
 			globalSnap = EditorGUILayout.Toggle("Global Snap", globalSnap);
@@ -163,6 +188,8 @@ public class PolyMeshEditor : Editor
 			selectAllKey = (KeyCode)EditorGUILayout.EnumPopup("[Select All] Key", selectAllKey);
 			splitKey = (KeyCode)EditorGUILayout.EnumPopup("[Split] Key", splitKey);
 			extrudeKey = (KeyCode)EditorGUILayout.EnumPopup("[Extrude] Key", extrudeKey);
+			
+			EditorGUI.indentLevel -= 1;
 		}
 	}
 
@@ -588,6 +615,17 @@ public class PolyMeshEditor : Editor
 
 	#region Drawing
 
+	bool IndentedButton(string name){
+		bool pressed = false;
+		GUILayout.BeginHorizontal();
+		GUILayout.Space(EditorGUI.indentLevel * 16);
+		if (GUILayout.Button(name)){
+			pressed = true;
+		}
+		GUILayout.EndHorizontal();
+		return pressed;
+	}
+	
 	void DrawAxis()
 	{
 		Handles.color = Color.red;
@@ -1031,28 +1069,10 @@ public class PolyMeshEditor : Editor
 
 	Vector3 GetSelectionCenter()
 	{
-		if (polyMesh.keyPoints.Count > 1)
-		{
-			var center = Vector3.zero;
-			var area = 0f;
-			var b = polyMesh.keyPoints[polyMesh.keyPoints.Count - 1];
-			foreach (var i in selectedIndices)
-			{
-				var a = polyMesh.keyPoints[i];
-				var k = a.y * b.x - a.x * b.y;
-				area += k;
-				center.x += (a.x + b.x) * k;
-				center.y += (a.y + b.y) * k;
-				b = a;
-			}
-			area *= 3;
-			if (Mathf.Approximately(area, 0))
-				return Vector3.zero;
-			else
-				return center / area;
-		}
-		else
-			return polyMesh.keyPoints[0];
+		var center = Vector3.zero;
+		foreach (var i in selectedIndices)
+			center += polyMesh.keyPoints[i];
+		return center / selectedIndices.Count;
 	}
 
 	#endregion

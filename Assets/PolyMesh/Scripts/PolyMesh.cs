@@ -8,7 +8,9 @@ public class PolyMesh : MonoBehaviour
 	public List<Vector3> keyPoints = new List<Vector3>();
 	public List<Vector3> curvePoints = new List<Vector3>();
 	public List<bool> isCurve = new List<bool>();
+	public bool colliderIs2D;
 	public MeshCollider meshCollider;
+	public PolygonCollider2D polygonCollider;
 	[Range(0.01f, 1)] public float curveDetail = 0.1f;
 	public float colliderDepth = 1;
 	public bool buildColliderEdges = true;
@@ -92,60 +94,73 @@ public class PolyMesh : MonoBehaviour
 	void UpdateCollider(List<Vector3> points, int[] tris)
 	{
 		//Update the mesh collider if there is one
-		if (meshCollider != null)
-		{
-			var vertices = new List<Vector3>();
-			var triangles = new List<int>();
-			
-			if (buildColliderEdges)
+		if (!colliderIs2D){
+			if (meshCollider != null)
 			{
-				//Build vertices array
-				var offset = new Vector3(0, 0, colliderDepth / 2);
-				for (int i = 0; i < points.Count; i++)
+				var vertices = new List<Vector3>();
+				var triangles = new List<int>();
+				
+				if (buildColliderEdges)
 				{
-					vertices.Add(points[i] + offset);
-					vertices.Add(points[i] - offset);
+					//Build vertices array
+					var offset = new Vector3(0, 0, colliderDepth / 2);
+					for (int i = 0; i < points.Count; i++)
+					{
+						vertices.Add(points[i] + offset);
+						vertices.Add(points[i] - offset);
+					}
+					
+					//Build triangles array
+					for (int a = 0; a < vertices.Count; a += 2)
+					{
+						var b = (a + 1) % vertices.Count;
+						var c = (a + 2) % vertices.Count;
+						var d = (a + 3) % vertices.Count;
+						triangles.Add(a);
+						triangles.Add(c);
+						triangles.Add(b);
+						triangles.Add(c);
+						triangles.Add(d);
+						triangles.Add(b);
+					}
 				}
 				
-				//Build triangles array
-				for (int a = 0; a < vertices.Count; a += 2)
+				if (buildColliderFront)
 				{
-					var b = (a + 1) % vertices.Count;
-					var c = (a + 2) % vertices.Count;
-					var d = (a + 3) % vertices.Count;
-					triangles.Add(a);
-					triangles.Add(c);
-					triangles.Add(b);
-					triangles.Add(c);
-					triangles.Add(d);
-					triangles.Add(b);
+					for (int i = 0; i < tris.Length; i++)
+						tris[i] += vertices.Count;
+					vertices.AddRange(points);
+					triangles.AddRange(tris);
 				}
+				
+				//Find the mesh (create it if it doesn't exist)
+				var mesh = meshCollider.sharedMesh;
+				if (mesh == null)
+				{
+					mesh = new Mesh();
+					mesh.name = "PolySprite_Collider";
+				}
+				
+				//Update the mesh
+				mesh.Clear();
+				mesh.vertices = vertices.ToArray();
+				mesh.triangles = triangles.ToArray();
+				mesh.RecalculateNormals();
+				mesh.Optimize();
+				meshCollider.sharedMesh = null;
+				meshCollider.sharedMesh = mesh;
+			}
+		}
+		else{
+			if (polygonCollider != null){
+				var vertices = new List<Vector2>();
+				
+				for (int i = 0; i < points.Count; i++){
+					vertices.Add(points[i]);
+				}
+				polygonCollider.points = vertices.ToArray();
 			}
 			
-			if (buildColliderFront)
-			{
-				for (int i = 0; i < tris.Length; i++)
-					tris[i] += vertices.Count;
-				vertices.AddRange(points);
-				triangles.AddRange(tris);
-			}
-			
-			//Find the mesh (create it if it doesn't exist)
-			var mesh = meshCollider.sharedMesh;
-			if (mesh == null)
-			{
-				mesh = new Mesh();
-				mesh.name = "PolySprite_Collider";
-			}
-			
-			//Update the mesh
-			mesh.Clear();
-			mesh.vertices = vertices.ToArray();
-			mesh.triangles = triangles.ToArray();
-			mesh.RecalculateNormals();
-			mesh.Optimize();
-			meshCollider.sharedMesh = null;
-			meshCollider.sharedMesh = mesh;
 		}
 	}
 	
